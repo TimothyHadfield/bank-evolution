@@ -1,0 +1,458 @@
+import React, { useState } from 'react';
+import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts';
+
+const BankEvolutionSimulator = () => {
+  const [numGenerations, setNumGenerations] = useState(100);
+  const [mutationRate, setMutationRate] = useState(0.03);
+  const [isRunning, setIsRunning] = useState(false);
+  const [populationHistory, setPopulationHistory] = useState([]);
+  const [speciesStats, setSpeciesStats] = useState([]);
+  const [chartHeight, setChartHeight] = useState(400);
+  const [chartDomain, setChartDomain] = useState([0, 'auto']);
+
+  // Roll two dice
+  const rollDice = () => {
+    return [Math.floor(Math.random() * 6) + 1, Math.floor(Math.random() * 6) + 1];
+  };
+
+  // Normalize weights to sum to 1 (100%)
+  const normalizeWeights = (weights) => {
+    const sum = weights.placement + weights.rollCount + weights.double + weights.total;
+    return {
+      placement: weights.placement / sum,
+      rollCount: weights.rollCount / sum,
+      double: weights.double / sum,
+      total: weights.total / sum
+    };
+  };
+
+  // Create evolved strategy based on genome
+  const createStrategy = (genome) => {
+    return (turnTotal, rollCount, currentScore, otherScores, justDoubled) => {
+      if (rollCount <= 3) return false;
+      
+      let bankScore = 0;
+      
+      // Factor 1: Placement after banking (normalized 0-100)
+      const potentialScore = currentScore + turnTotal;
+      const maxOtherScore = Math.max(...otherScores);
+      const minOtherScore = Math.min(...otherScores);
+      let placementScore = 0;
+      if (potentialScore > maxOtherScore) placementScore = 100;
+      else if (potentialScore > minOtherScore) placementScore = 50;
+      bankScore += placementScore * genome.weights.placement;
+      
+      // Factor 2: Roll count (0-100 scale, more rolls = higher score)
+      const rollScore = Math.min(100, (rollCount - 3) * 10);
+      bankScore += rollScore * genome.weights.rollCount;
+      
+      // Factor 3: Just doubled (0 or 100)
+      const doubleScore = justDoubled ? 100 : 0;
+      bankScore += doubleScore * genome.weights.double;
+      
+      // Factor 4: Current round total (scale 0-100, capped at 200 points)
+      const totalScore = Math.min(100, (turnTotal / 200) * 100);
+      bankScore += totalScore * genome.weights.total;
+      
+      // Bank if score exceeds threshold (genome.threshold is 0-100)
+      return bankScore >= genome.threshold;
+    };
+  };
+
+  // Create initial genome - equal weights
+  const createInitialGenome = () => {
+    return {
+      weights: {
+        placement: 0.25,  // 25%
+        rollCount: 0.25,  // 25%
+        double: 0.25,     // 25%
+        total: 0.25       // 25%
+      },
+      threshold: 50,
+      species: 'Origin',
+      speciesId: 0,
+      generation: 0
+    };
+  };
+
+  // Mutate a genome
+  const mutateGenome = (parentGenome, generation, newSpeciesId) => {
+    const mutated = { ...parentGenome };
+    
+    // Copy weights
+    const newWeights = { ...parentGenome.weights };
+    
+    // Adjust each weight by a small random amount (-5% to +5%)
+    Object.keys(newWeights).forEach(key => {
+      const adjustment = (Math.random() * 0.1 - 0.05); // -5% to +5%
+      newWeights[key] = Math.max(0.01, newWeights[key] + adjustment);
+    });
+    
+    // Normalize to ensure they sum to 1 (100%)
+    mutated.weights = normalizeWeights(newWeights);
+    
+    // Also potentially adjust threshold slightly
+    mutated.threshold = Math.max(10, Math.min(90, parentGenome.threshold + (Math.random() * 20 - 10)));
+    
+    mutated.species = `Species_${newSpeciesId}`;
+    mutated.speciesId = newSpeciesId;
+    mutated.generation = generation;
+    
+    return mutated;
+  };
+
+  // Generate random color for species
+  const generateColor = (id) => {
+    const hue = (id * 137.508) % 360; // Golden angle for good distribution
+    return `hsl(${hue}, 70%, 50%)`;
+  };
+
+  // Play one round for a player
+  const playRound = (strategy, currentScore, otherScores) => {
+    let turnTotal = 0;
+    let rollCount = 0;
+    let justDoubled = false;
+
+    while (true) {
+      rollCount++;
+      const [die1, die2] = rollDice();
+      const sum = die1 + die2;
+      const isDoubles = die1 === die2;
+
+      if (rollCount <= 3) {
+        if (sum === 7) {
+          turnTotal += 70;
+        } else {
+          turnTotal += sum;
+        }
+        justDoubled = false;
+      } else {
+        if (sum === 7) {
+          return 0;
+        }
+        
+        if (isDoubles) {
+          turnTotal = turnTotal * 2;
+          justDoubled = true;
+        } else {
+          turnTotal += sum;
+          justDoubled = false;
+        }
+      }
+
+      if (strategy(turnTotal, rollCount, currentScore, otherScores, justDoubled)) {
+        return turnTotal;
+      }
+    }
+  };
+
+  // Play one complete game with 4 players
+  const playGame = (players) => {
+    const scores = {};
+    players.forEach(p => scores[p.id] = 0);
+
+    for (let round = 0; round < 10; round++) {
+      for (const player of players) {
+        const otherScores = players
+          .filter(p => p.id !== player.id)
+          .map(p => scores[p.id]);
+        
+        const strategy = createStrategy(player.genome);
+        const roundScore = playRound(
+          strategy,
+          scores[player.id],
+          otherScores
+        );
+        
+        scores[player.id] += roundScore;
+      }
+    }
+
+    return scores;
+  };
+
+  // Run evolution simulation
+  const runEvolution = () => {
+    setIsRunning(true);
+    
+    setTimeout(() => {
+      // Initialize population: 120 of the origin species
+      let population = [];
+      let idCounter = 0;
+      let speciesCounter = 1; // 0 is origin
+      
+      const originGenome = createInitialGenome();
+      for (let i = 0; i < 120; i++) {
+        population.push({ 
+          id: idCounter++, 
+          genome: { ...originGenome }
+        });
+      }
+
+      const history = [];
+      const speciesTracker = {}; // Track max population for each species
+      const speciesColors = { 0: '#8b5cf6' }; // Origin color
+      
+      // Initialize species tracker
+      speciesTracker[0] = { 
+        maxPop: 120, 
+        genome: originGenome,
+        name: 'Origin'
+      };
+      
+      // Track population by species ID
+      const countBySpeciesId = (pop) => {
+        const counts = {};
+        pop.forEach(p => {
+          const sid = p.genome.speciesId;
+          counts[sid] = (counts[sid] || 0) + 1;
+        });
+        return counts;
+      };
+      
+      const initialCounts = countBySpeciesId(population);
+      history.push({ generation: 0, ...initialCounts });
+
+      // Run generations
+      for (let gen = 1; gen <= numGenerations; gen++) {
+        if (population.length === 0) break;
+        
+        // Play 20 games
+        for (let game = 0; game < 20; game++) {
+          if (population.length < 4) break;
+          
+          // Randomly select 4 players
+          const shuffled = [...population].sort(() => Math.random() - 0.5);
+          const selectedPlayers = shuffled.slice(0, 4);
+          
+          // Play the game
+          const scores = playGame(selectedPlayers);
+          
+          // Find winner and losers
+          const sortedPlayers = selectedPlayers.sort((a, b) => scores[b.id] - scores[a.id]);
+          const winner = sortedPlayers[0];
+          const losers = sortedPlayers.slice(1);
+          
+          // Winner breeds if population < 120
+          if (population.length < 120) {
+            let childGenome;
+            
+            // Check for mutation
+            if (Math.random() < mutationRate) {
+              const newSpeciesId = speciesCounter++;
+              childGenome = mutateGenome(winner.genome, gen, newSpeciesId);
+              
+              // Track new species
+              speciesTracker[newSpeciesId] = {
+                maxPop: 1,
+                genome: childGenome,
+                name: childGenome.species
+              };
+              speciesColors[newSpeciesId] = generateColor(newSpeciesId);
+            } else {
+              childGenome = { ...winner.genome };
+            }
+            
+            population.push({ 
+              id: idCounter++, 
+              genome: childGenome
+            });
+          }
+          
+          // Each loser has 33% chance of dying
+          losers.forEach(loser => {
+            if (Math.random() < 0.33) {
+              const index = population.findIndex(p => p.id === loser.id);
+              if (index !== -1) {
+                population.splice(index, 1);
+              }
+            }
+          });
+        }
+        
+        // Update species tracker with current populations
+        const currentCounts = countBySpeciesId(population);
+        Object.keys(currentCounts).forEach(sid => {
+          if (speciesTracker[sid]) {
+            speciesTracker[sid].maxPop = Math.max(
+              speciesTracker[sid].maxPop, 
+              currentCounts[sid]
+            );
+          }
+        });
+        
+        // Record population after this generation
+        history.push({ generation: gen, ...currentCounts });
+      }
+
+      setPopulationHistory(history);
+      
+      // Sort species by max population
+      const sortedSpecies = Object.entries(speciesTracker)
+        .map(([id, data]) => ({
+          id: parseInt(id),
+          name: data.name,
+          maxPop: data.maxPop,
+          weights: data.genome.weights,
+          threshold: data.genome.threshold,
+          color: speciesColors[id]
+        }))
+        .sort((a, b) => b.maxPop - a.maxPop);
+      
+      setSpeciesStats(sortedSpecies);
+      setIsRunning(false);
+    }, 100);
+  };
+
+  return (
+    <div className="min-h-screen bg-gradient-to-br from-green-50 to-blue-100 p-8">
+      <div className="max-w-7xl mx-auto">
+        <h1 className="text-4xl font-bold text-center text-green-900 mb-2">
+          🧬 BANK Game Evolution - Species Tracking
+        </h1>
+        <p className="text-center text-gray-600 mb-8">
+          Watch new species emerge and compete from a single origin
+        </p>
+
+        <div className="bg-white rounded-lg shadow-lg p-6 mb-6">
+          <h2 className="text-xl font-semibold text-gray-800 mb-4">Simulation Settings</h2>
+          <div className="flex flex-wrap items-center gap-4 mb-6">
+            <div>
+              <label className="block text-sm font-semibold text-gray-700 mb-1">
+                Number of Generations:
+              </label>
+              <input
+                type="number"
+                value={numGenerations}
+                onChange={(e) => setNumGenerations(Math.max(1, parseInt(e.target.value) || 1))}
+                className="border-2 border-green-300 rounded px-4 py-2 w-32 text-lg"
+                min="1"
+              />
+            </div>
+            <div>
+              <label className="block text-sm font-semibold text-gray-700 mb-1">
+                Mutation Rate:
+              </label>
+              <input
+                type="number"
+                step="0.01"
+                value={mutationRate}
+                onChange={(e) => setMutationRate(Math.max(0, Math.min(1, parseFloat(e.target.value) || 0)))}
+                className="border-2 border-purple-300 rounded px-4 py-2 w-32 text-lg"
+                min="0"
+                max="1"
+              />
+            </div>
+            <button
+              onClick={runEvolution}
+              disabled={isRunning}
+              className="bg-green-600 hover:bg-green-700 disabled:bg-gray-400 text-white font-bold py-2 px-6 rounded-lg transition mt-6"
+            >
+              {isRunning ? 'Running...' : 'Start Evolution'}
+            </button>
+          </div>
+
+          <div className="bg-blue-50 p-4 rounded-lg border-2 border-blue-200">
+            <h3 className="font-bold text-blue-900 mb-2">Evolution Rules</h3>
+            <ul className="text-sm text-gray-700 space-y-1">
+              <li>• Population starts with 120 individuals of the Origin species</li>
+              <li>• Origin species values all 4 factors equally (25% each)</li>
+              <li>• Each generation: 20 random 4-player games</li>
+              <li>• Winner breeds (creates offspring) if pop {'<'} 120</li>
+              <li>• Mutation rate: {(mutationRate * 100).toFixed(0)}% chance offspring becomes new species</li>
+              <li>• Mutations adjust each weight by ±5%, then normalize to 100%</li>
+              <li>• Bottom 3 players each have 33% chance of elimination</li>
+            </ul>
+          </div>
+
+          <div className="bg-purple-50 p-4 rounded-lg border-2 border-purple-200 mt-4">
+            <h3 className="font-bold text-purple-900 mb-2">Strategy Factors (Always sum to 100%)</h3>
+            <ul className="text-sm text-gray-700 space-y-1">
+              <li>• <strong>Placement:</strong> Being in 1st place after banking</li>
+              <li>• <strong>Roll Count:</strong> Risk from rolling many times</li>
+              <li>• <strong>Double:</strong> Banking right after rolling doubles</li>
+              <li>• <strong>Total:</strong> Current turn total score</li>
+            </ul>
+          </div>
+        </div>
+
+        {populationHistory.length > 0 && (
+          <>
+            <div className="bg-white rounded-lg shadow-lg p-6 mb-6">
+              <h2 className="text-2xl font-bold text-gray-800 mb-4">Population Over Time (Top 10 Species)</h2>
+              <ResponsiveContainer width="100%" height={400}>
+                <LineChart data={populationHistory}>
+                  <CartesianGrid strokeDasharray="3 3" />
+                  <XAxis dataKey="generation" label={{ value: 'Generation', position: 'insideBottom', offset: -5 }} />
+                  <YAxis label={{ value: 'Population', angle: -90, position: 'insideLeft' }} />
+                  <Tooltip />
+                  <Legend />
+                  {speciesStats.slice(0, 10).map(species => (
+                    <Line 
+                      key={species.id}
+                      type="monotone" 
+                      dataKey={species.id.toString()} 
+                      name={species.name}
+                      stroke={species.color}
+                      strokeWidth={species.id === 0 ? 3 : 2}
+                      dot={false}
+                    />
+                  ))}
+                </LineChart>
+              </ResponsiveContainer>
+            </div>
+
+            {speciesStats.length > 0 && (
+              <div className="bg-white rounded-lg shadow-lg p-6">
+                <h2 className="text-2xl font-bold text-gray-800 mb-4">
+                  Species Rankings (by Max Population)
+                </h2>
+                <div className="overflow-x-auto">
+                  <table className="w-full text-sm">
+                    <thead className="bg-gray-100">
+                      <tr>
+                        <th className="p-2 text-left">Rank</th>
+                        <th className="p-2 text-left">Species</th>
+                        <th className="p-2 text-right">Max Pop</th>
+                        <th className="p-2 text-right">Placement</th>
+                        <th className="p-2 text-right">Roll Count</th>
+                        <th className="p-2 text-right">Double</th>
+                        <th className="p-2 text-right">Total</th>
+                        <th className="p-2 text-right">Threshold</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {speciesStats.map((species, idx) => (
+                        <tr key={species.id} className="border-b hover:bg-gray-50">
+                          <td className="p-2 font-semibold">{idx + 1}</td>
+                          <td className="p-2">
+                            <span 
+                              className="inline-block w-3 h-3 rounded-full mr-2"
+                              style={{ backgroundColor: species.color }}
+                            />
+                            {species.name}
+                          </td>
+                          <td className="p-2 text-right font-bold">{species.maxPop}</td>
+                          <td className="p-2 text-right">{(species.weights.placement * 100).toFixed(1)}%</td>
+                          <td className="p-2 text-right">{(species.weights.rollCount * 100).toFixed(1)}%</td>
+                          <td className="p-2 text-right">{(species.weights.double * 100).toFixed(1)}%</td>
+                          <td className="p-2 text-right">{(species.weights.total * 100).toFixed(1)}%</td>
+                          <td className="p-2 text-right">{species.threshold.toFixed(0)}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+                <p className="text-sm text-gray-600 mt-4 text-center">
+                  Total unique species created: {speciesStats.length}
+                </p>
+              </div>
+            )}
+          </>
+        )}
+      </div>
+    </div>
+  );
+};
+
+export default BankEvolutionSimulator;
