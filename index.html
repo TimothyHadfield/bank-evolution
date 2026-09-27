@@ -171,6 +171,19 @@
       padding: 1rem;
       margin-bottom: 1rem;
     }
+    .dice-stats {
+      display: grid;
+      grid-template-columns: repeat(2, 1fr);
+      gap: 1.5rem;
+    }
+    /* Phone widths: keep everything inside the screen (no sideways scroll) */
+    @media (max-width: 600px) {
+      body { padding: 1rem; }
+      .tabs { gap: 0.5rem; }
+      .tab { min-width: 0; padding: 0.75rem 0.25rem; }
+      .checkbox-list, .species-list { grid-template-columns: repeat(auto-fill, minmax(160px, 1fr)); }
+      .dice-stats { grid-template-columns: 1fr; }
+    }
   </style>
 </head>
 <body>
@@ -329,7 +342,7 @@
 
         <div class="card">
           <h2>🎲 Dice Statistics (<span id="trial-dice-total">0</span> rolls)</h2>
-          <div style="display: grid; grid-template-columns: repeat(2, 1fr); gap: 1.5rem;">
+          <div class="dice-stats">
             <div>
               <h3 style="font-weight: 600; margin-bottom: 0.75rem;">Doubles</h3>
               <table style="font-size: 0.875rem;">
