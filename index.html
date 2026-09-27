@@ -1,181 +1,552 @@
-import React, { useState, useEffect } from 'react';
-import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, BarChart, Bar } from 'recharts';
-
-const BankEvolutionSystem = () => {
-  const [activeTab, setActiveTab] = useState('evolve');
-  const [numGenerations, setNumGenerations] = useState(100);
-  const [mutationRate, setMutationRate] = useState(0.03);
-  const [maxPopulation, setMaxPopulation] = useState(120);
-  const [isRunning, setIsRunning] = useState(false);
-  const [populationHistory, setPopulationHistory] = useState([]);
-  const [speciesStats, setSpeciesStats] = useState([]);
-  const [savedSpecies, setSavedSpecies] = useState([]);
-  const [selectedForSave, setSelectedForSave] = useState(new Set());
-  const [selectedForCompete, setSelectedForCompete] = useState(new Set());
-  const [numGames, setNumGames] = useState(1000);
-  const [competeResults, setCompeteResults] = useState(null);
-
-  useEffect(() => {
-    const saved = localStorage.getItem('bankSpecies');
-    if (saved) {
-      setSavedSpecies(JSON.parse(saved));
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>🧬 BANK Game Evolution</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Arial, sans-serif;
+      background: linear-gradient(to bottom right, #f0fdf4, #dbeafe);
+      min-height: 100vh;
+      padding: 2rem;
     }
-  }, []);
+    .container { max-width: 1200px; margin: 0 auto; }
+    h1 { font-size: 2.5rem; text-align: center; color: #14532d; margin-bottom: 0.5rem; }
+    .subtitle { text-align: center; color: #6b7280; margin-bottom: 2rem; }
+    .tabs {
+      display: flex;
+      gap: 0.75rem;
+      background: white;
+      padding: 0.75rem;
+      border-radius: 0.5rem;
+      box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+      margin-bottom: 2rem;
+    }
+    .tab {
+      flex: 1;
+      padding: 0.75rem 1.5rem;
+      background: #f3f4f6;
+      border: none;
+      border-radius: 0.5rem;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+    .tab:hover { background: #e5e7eb; }
+    .tab.active { background: #16a34a; color: white; }
+    .card {
+      background: white;
+      border-radius: 0.5rem;
+      padding: 1.5rem;
+      box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+      margin-bottom: 1.5rem;
+    }
+    .card h2 { font-size: 1.5rem; margin-bottom: 1rem; }
+    .settings-grid {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 1rem;
+      margin-bottom: 1rem;
+    }
+    .input-group label {
+      display: block;
+      font-weight: 600;
+      margin-bottom: 0.25rem;
+      font-size: 0.9rem;
+    }
+    .input-group input, .input-group select {
+      width: 100%;
+      padding: 0.5rem 1rem;
+      border: 2px solid #d1d5db;
+      border-radius: 0.375rem;
+      font-size: 1rem;
+    }
+    .btn {
+      padding: 0.75rem 2rem;
+      border: none;
+      border-radius: 0.5rem;
+      font-weight: 700;
+      cursor: pointer;
+      transition: all 0.2s;
+      font-size: 1rem;
+    }
+    .btn-primary {
+      background: #16a34a;
+      color: white;
+    }
+    .btn-primary:hover { background: #15803d; }
+    .btn-primary:disabled {
+      background: #9ca3af;
+      cursor: not-allowed;
+    }
+    .species-list {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 1rem;
+    }
+    .species-card {
+      border: 2px solid #e5e7eb;
+      border-radius: 0.5rem;
+      padding: 1rem;
+      position: relative;
+      padding-bottom: 3rem;
+    }
+    .species-header {
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+      margin-bottom: 0.75rem;
+    }
+    .color-dot {
+      width: 1rem;
+      height: 1rem;
+      border-radius: 50%;
+    }
+    .species-name {
+      font-weight: 700;
+      font-size: 1.125rem;
+    }
+    .species-stats {
+      font-size: 0.875rem;
+      line-height: 1.5;
+    }
+    .btn-remove {
+      position: absolute;
+      bottom: 0.5rem;
+      right: 0.5rem;
+      background: #ef4444;
+      color: white;
+      padding: 0.25rem 0.75rem;
+      border-radius: 0.25rem;
+      font-size: 0.875rem;
+      border: none;
+      cursor: pointer;
+    }
+    .btn-remove:hover { background: #dc2626; }
+    .hidden { display: none; }
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 0.875rem;
+    }
+    thead {
+      background: #f3f4f6;
+    }
+    th, td {
+      padding: 0.5rem;
+      text-align: left;
+      border-bottom: 1px solid #e5e7eb;
+    }
+    tr:hover { background: #f9fafb; }
+    .checkbox-list {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 0.75rem;
+      margin-bottom: 1rem;
+    }
+    .checkbox-label {
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+      padding: 0.75rem;
+      border: 2px solid #e5e7eb;
+      border-radius: 0.5rem;
+      cursor: pointer;
+    }
+    .checkbox-label:hover { background: #f9fafb; }
+    input[type="checkbox"] {
+      width: 1.25rem;
+      height: 1.25rem;
+      cursor: pointer;
+    }
+    .results-table {
+      overflow-x: auto;
+    }
+    .alert {
+      background: #fef3c7;
+      border: 2px solid #fbbf24;
+      border-radius: 0.5rem;
+      padding: 1rem;
+      margin-bottom: 1rem;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h1>🧬 BANK Game Evolution</h1>
+    <p class="subtitle">Evolve and compete strategies</p>
 
-  const rollDice = () => {
-    return [Math.floor(Math.random() * 6) + 1, Math.floor(Math.random() * 6) + 1];
-  };
+    <div class="tabs">
+      <button class="tab active" onclick="switchTab('evolve')">Evolve</button>
+      <button class="tab" onclick="switchTab('compete')">Compete</button>
+      <button class="tab" onclick="switchTab('trial')">Trial Game</button>
+      <button class="tab" onclick="switchTab('saved')">Saved (<span id="saved-count">0</span>)</button>
+    </div>
 
-  const normalizeWeights = (weights) => {
-    const sum = weights.placement + weights.rollCount + weights.double + weights.total;
-    return {
-      placement: weights.placement / sum,
-      rollCount: weights.rollCount / sum,
-      double: weights.double / sum,
-      total: weights.total / sum
-    };
-  };
+    <!-- EVOLVE TAB -->
+    <div id="tab-evolve" class="tab-content">
+      <div class="card">
+        <h2>Settings</h2>
+        <div class="settings-grid">
+          <div class="input-group">
+            <label>Generations:</label>
+            <input type="number" id="num-generations" value="100">
+          </div>
+          <div class="input-group">
+            <label>Mutation Rate:</label>
+            <input type="number" step="0.01" id="mutation-rate" value="0.03">
+          </div>
+          <div class="input-group">
+            <label>Max Population:</label>
+            <input type="number" id="max-population" value="120">
+          </div>
+        </div>
+        <div class="input-group" style="margin-bottom: 1rem;">
+          <label>Starting Species:</label>
+          <select id="starting-species">
+            <option value="">Origin (default)</option>
+          </select>
+        </div>
+        <button class="btn btn-primary" onclick="runEvolution()">Start Evolution</button>
+      </div>
 
-  const createStrategy = (genome) => {
-    return (turnTotal, rollCount, currentScore, otherScores, justDoubled) => {
-      if (rollCount <= 3) return false;
-      
-      let bankScore = 0;
-      
-      const potentialScore = currentScore + turnTotal;
-      const maxOtherScore = Math.max(...otherScores);
-      const minOtherScore = Math.min(...otherScores);
-      let placementScore = 0;
-      if (potentialScore > maxOtherScore) placementScore = 100;
-      else if (potentialScore > minOtherScore) placementScore = 50;
-      bankScore += placementScore * genome.weights.placement;
-      
-      const rollScore = Math.min(100, (rollCount - 3) * 10);
-      bankScore += rollScore * genome.weights.rollCount;
-      
-      const doubleScore = justDoubled ? 100 : 0;
-      bankScore += doubleScore * genome.weights.double;
-      
-      const totalScore = Math.min(100, (turnTotal / 200) * 100);
-      bankScore += totalScore * genome.weights.total;
-      
-      return bankScore >= genome.threshold;
-    };
-  };
+      <div id="results-container" class="hidden">
+        <div class="card">
+          <h2>Evolution Results</h2>
+          <p>Evolution completed! Check the table below for dominant species at key milestones.</p>
+        </div>
 
-  const createInitialGenome = () => {
-    return {
-      weights: { placement: 0.25, rollCount: 0.25, double: 0.25, total: 0.25 },
-      threshold: 50,
-      species: 'Origin',
-      speciesId: 0,
-      generation: 0
-    };
-  };
+        <div class="card">
+          <h2>Dominant Species at Key Milestones</h2>
+          <div class="results-table">
+            <table id="species-table">
+              <thead>
+                <tr>
+                  <th>Save</th>
+                  <th>Milestone</th>
+                  <th>Species</th>
+                  <th>Max Pop</th>
+                  <th>Placement</th>
+                  <th>Roll</th>
+                  <th>Double</th>
+                  <th>Total</th>
+                  <th>Threshold</th>
+                </tr>
+              </thead>
+              <tbody id="species-tbody">
+              </tbody>
+            </table>
+          </div>
+          <button class="btn btn-primary" onclick="saveSelected()" style="margin-top: 1rem;" id="save-btn" disabled>Save Selected (0)</button>
+        </div>
+      </div>
+    </div>
 
-  const mutateGenome = (parentGenome, generation, newSpeciesId) => {
-    const newWeights = { ...parentGenome.weights };
-    
-    Object.keys(newWeights).forEach(key => {
-      const adjustment = (Math.random() * 0.1 - 0.05);
-      newWeights[key] = Math.max(0.01, newWeights[key] + adjustment);
-    });
-    
-    return {
-      weights: normalizeWeights(newWeights),
-      threshold: Math.max(10, Math.min(90, parentGenome.threshold + (Math.random() * 20 - 10))),
-      species: 'Species_' + newSpeciesId,
-      speciesId: newSpeciesId,
-      generation: generation
-    };
-  };
+    <!-- COMPETE TAB -->
+    <div id="tab-compete" class="tab-content hidden">
+      <div class="card">
+        <h2>Competition</h2>
+        <div class="input-group" style="max-width: 300px; margin-bottom: 1rem;">
+          <label>Games:</label>
+          <input type="number" id="num-games" value="1000">
+        </div>
+        <h3 style="margin-bottom: 0.75rem; font-weight: 600;">Select 2+ Species:</h3>
+        <div id="compete-species-list" class="checkbox-list">
+          <p>No saved species! Save some from the Evolve tab first.</p>
+        </div>
+        <button class="btn btn-primary" onclick="runCompetition()" id="compete-btn" disabled>Start Competition</button>
+      </div>
 
-  const generateColor = (id) => {
-    const hue = (id * 137.508) % 360;
-    return 'hsl(' + hue + ', 70%, 50%)';
-  };
+      <div id="compete-results" class="hidden">
+        <div class="card">
+          <h2>Competition Results</h2>
+          <table>
+            <thead>
+              <tr>
+                <th>Rank</th>
+                <th>Species</th>
+                <th>Wins</th>
+                <th>Win Rate</th>
+                <th>Avg Score</th>
+              </tr>
+            </thead>
+            <tbody id="compete-tbody">
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
 
-  const playRound = (strategy, currentScore, otherScores) => {
-    let turnTotal = 0;
-    let rollCount = 0;
-    let justDoubled = false;
+    <!-- TRIAL TAB -->
+    <div id="tab-trial" class="tab-content hidden">
+      <div id="trial-setup" class="card">
+        <h2>Trial Game</h2>
+        <p style="margin-bottom: 1rem; color: #6b7280;">Select species to compete against. Everyone shares the same dice rolls!</p>
+        <div id="trial-species-list" class="checkbox-list">
+          <p>No saved species! Save some from the Evolve tab first.</p>
+        </div>
+        <button class="btn btn-primary" onclick="startTrialGame()" id="trial-start-btn" disabled>Start Trial Game (0 opponents)</button>
+      </div>
 
-    while (true) {
-      rollCount++;
-      const dice = rollDice();
-      const die1 = dice[0];
-      const die2 = dice[1];
-      const sum = die1 + die2;
-      const isDoubles = die1 === die2;
+      <div id="trial-game" class="hidden">
+        <div class="card">
+          <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1.5rem;">
+            <h2 style="margin: 0;">Round <span id="trial-round">1</span> / 10</h2>
+            <button class="btn" style="background: #ef4444; color: white;" onclick="endTrialGame()">End Game</button>
+          </div>
 
-      if (rollCount <= 3) {
-        if (sum === 7) {
-          turnTotal += 70;
-        } else {
-          turnTotal += sum;
-        }
-        justDoubled = false;
-      } else {
-        if (sum === 7) {
-          return 0;
-        }
-        
-        if (isDoubles) {
-          turnTotal = turnTotal * 2;
-          justDoubled = true;
-        } else {
-          turnTotal += sum;
-          justDoubled = false;
+          <h3 style="margin-bottom: 0.75rem;">Scoreboard</h3>
+          <div id="trial-scoreboard" style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 1rem; margin-bottom: 1.5rem;">
+          </div>
+
+          <div id="trial-game-over" class="hidden" style="background: linear-gradient(to right, #fef3c7, #fde68a); padding: 2rem; border-radius: 0.5rem; text-align: center;">
+            <h2 style="margin-bottom: 1rem;">Game Over!</h2>
+            <div id="trial-final-results"></div>
+          </div>
+
+          <div id="trial-playing" style="background: #dbeafe; padding: 1.5rem; border-radius: 0.5rem; border: 2px solid #3b82f6;">
+            <h3 style="font-size: 1.5rem; margin-bottom: 1rem;">Your Turn!</h3>
+            <div style="margin-bottom: 1rem;">
+              <p style="font-size: 1.125rem; margin-bottom: 0.5rem;">
+                Current Turn Total: <span id="trial-turn-total" style="font-weight: 700; font-size: 1.75rem; color: #15803d;">0</span>
+              </p>
+              <p style="font-size: 0.875rem; color: #4b5563;">Rolls this turn: <span id="trial-roll-count">0</span></p>
+              <p id="trial-last-roll" style="font-size: 0.875rem; color: #4b5563;"></p>
+            </div>
+            <div style="display: flex; gap: 1rem;">
+              <button class="btn btn-primary" onclick="rollInTrial()" style="flex: 1; background: #3b82f6; font-size: 1.25rem; padding: 1rem;">Roll Dice</button>
+              <button class="btn btn-primary" onclick="bankInTrial()" id="trial-bank-btn" disabled style="flex: 1; font-size: 1.25rem; padding: 1rem;">Bank (0)</button>
+            </div>
+          </div>
+
+          <div id="trial-banked" class="hidden" style="background: #f3f4f6; padding: 1.5rem; border-radius: 0.5rem; text-align: center;">
+            <p style="font-size: 1.125rem; font-weight: 600; margin-bottom: 1rem;">You've banked! Watching AI players...</p>
+            <p id="trial-watching-info" style="font-size: 0.875rem; color: #6b7280;"></p>
+          </div>
+        </div>
+
+        <div class="card">
+          <h2>🎲 Dice Statistics (<span id="trial-dice-total">0</span> rolls)</h2>
+          <div style="display: grid; grid-template-columns: repeat(2, 1fr); gap: 1.5rem;">
+            <div>
+              <h3 style="font-weight: 600; margin-bottom: 0.75rem;">Doubles</h3>
+              <table style="font-size: 0.875rem;">
+                <thead style="background: #f3f4f6;">
+                  <tr>
+                    <th style="padding: 0.5rem;">Double</th>
+                    <th style="padding: 0.5rem;">Count</th>
+                    <th style="padding: 0.5rem;">%</th>
+                  </tr>
+                </thead>
+                <tbody id="trial-doubles-tbody">
+                </tbody>
+              </table>
+            </div>
+            <div>
+              <h3 style="font-weight: 600; margin-bottom: 0.75rem;">Sum Distribution</h3>
+              <table style="font-size: 0.875rem;">
+                <thead style="background: #f3f4f6;">
+                  <tr>
+                    <th style="padding: 0.5rem;">Sum</th>
+                    <th style="padding: 0.5rem;">Count</th>
+                    <th style="padding: 0.5rem;">%</th>
+                  </tr>
+                </thead>
+                <tbody id="trial-sums-tbody">
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- SAVED TAB -->
+    <div id="tab-saved" class="tab-content hidden">
+      <div class="card">
+        <h2>Saved Species (<span id="saved-count-2">0</span>)</h2>
+        <div id="saved-species-list" class="species-list">
+          <p>No saved species!</p>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    // Storage
+    let savedSpecies = [];
+    let selectedForSave = new Set();
+    let selectedForCompete = new Set();
+    let latestResults = [];
+
+    // Load saved species from localStorage
+    function loadSaved() {
+      const data = localStorage.getItem('bankSpecies');
+      if (data) {
+        savedSpecies = JSON.parse(data);
+        updateSavedCount();
+        updateStartingSpeciesDropdown();
+        updateCompeteList();
+        updateSavedList();
+      }
+    }
+
+    function savePersistent() {
+      localStorage.setItem('bankSpecies', JSON.stringify(savedSpecies));
+      updateSavedCount();
+      updateStartingSpeciesDropdown();
+      updateCompeteList();
+      updateSavedList();
+    }
+
+    function updateSavedCount() {
+      document.getElementById('saved-count').textContent = savedSpecies.length;
+      document.getElementById('saved-count-2').textContent = savedSpecies.length;
+    }
+
+    function updateStartingSpeciesDropdown() {
+      const select = document.getElementById('starting-species');
+      select.innerHTML = '<option value="">Origin (default)</option>';
+      savedSpecies.forEach(s => {
+        const opt = document.createElement('option');
+        opt.value = s.name;
+        opt.textContent = s.name;
+        select.appendChild(opt);
+      });
+    }
+
+    // Tab switching
+    function switchTab(tabName) {
+      document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+      document.querySelectorAll('.tab-content').forEach(t => t.classList.add('hidden'));
+
+      event.target.classList.add('active');
+      document.getElementById('tab-' + tabName).classList.remove('hidden');
+    }
+
+    // Utility functions
+    function rollDice() {
+      return [Math.floor(Math.random() * 6) + 1, Math.floor(Math.random() * 6) + 1];
+    }
+
+    function normalizeWeights(weights) {
+      const sum = weights.placement + weights.rollCount + weights.double + weights.total;
+      return {
+        placement: weights.placement / sum,
+        rollCount: weights.rollCount / sum,
+        double: weights.double / sum,
+        total: weights.total / sum
+      };
+    }
+
+    function createStrategy(genome) {
+      return (turnTotal, rollCount, currentScore, otherScores, justDoubled) => {
+        if (rollCount <= 3) return false;
+        let bankScore = 0;
+        const potentialScore = currentScore + turnTotal;
+        const maxOther = Math.max(...otherScores);
+        const minOther = Math.min(...otherScores);
+        if (potentialScore > maxOther) bankScore += 100 * genome.weights.placement;
+        else if (potentialScore > minOther) bankScore += 50 * genome.weights.placement;
+        bankScore += Math.min(100, (rollCount - 3) * 10) * genome.weights.rollCount;
+        bankScore += (justDoubled ? 100 : 0) * genome.weights.double;
+        bankScore += Math.min(100, (turnTotal / 200) * 100) * genome.weights.total;
+        return bankScore >= genome.threshold;
+      };
+    }
+
+    function playGame(players) {
+      const scores = {};
+      players.forEach(p => { scores[p.id] = 0; });
+
+      for (let round = 0; round < 10; round++) {
+        let turnTotal = 0;
+        let rollCount = 0;
+        let justDoubled = false;
+        const stillPlaying = new Set(players.map(p => p.id));
+
+        while (stillPlaying.size > 0) {
+          rollCount++;
+          const dice = rollDice();
+          const die1 = dice[0];
+          const die2 = dice[1];
+          const sum = die1 + die2;
+
+          if (rollCount <= 3) {
+            turnTotal += (sum === 7) ? 70 : sum;
+            justDoubled = false;
+          } else {
+            if (sum === 7) {
+              stillPlaying.clear();
+              break;
+            }
+            if (die1 === die2) {
+              turnTotal *= 2;
+              justDoubled = true;
+            } else {
+              turnTotal += sum;
+              justDoubled = false;
+            }
+          }
+
+          const banking = [];
+          for (const player of players) {
+            if (stillPlaying.has(player.id)) {
+              const strategy = createStrategy(player.genome);
+              const otherScores = players.filter(p => p.id !== player.id).map(p => scores[p.id]);
+              if (strategy(turnTotal, rollCount, scores[player.id], otherScores, justDoubled)) {
+                banking.push(player.id);
+              }
+            }
+          }
+
+          banking.forEach(id => {
+            scores[id] += turnTotal;
+            stillPlaying.delete(id);
+          });
         }
       }
 
-      if (strategy(turnTotal, rollCount, currentScore, otherScores, justDoubled)) {
-        return turnTotal;
-      }
-    }
-  };
-
-  const playGame = (players) => {
-    const scores = {};
-    players.forEach(p => {
-      scores[p.id] = 0;
-    });
-
-    for (let round = 0; round < 10; round++) {
-      for (const player of players) {
-        const otherScores = players
-          .filter(p => p.id !== player.id)
-          .map(p => scores[p.id]);
-        
-        const strategy = createStrategy(player.genome);
-        const roundScore = playRound(strategy, scores[player.id], otherScores);
-        
-        scores[player.id] += roundScore;
-      }
+      return scores;
     }
 
-    return scores;
-  };
+    // Evolution
+    function runEvolution() {
+      const numGenerations = parseInt(document.getElementById('num-generations').value);
+      const mutationRate = parseFloat(document.getElementById('mutation-rate').value);
+      const maxPopulation = parseInt(document.getElementById('max-population').value);
+      const startingSpeciesName = document.getElementById('starting-species').value;
 
-  const runEvolution = () => {
-    setIsRunning(true);
-    
-    setTimeout(() => {
+      const startingSpecies = savedSpecies.find(s => s.name === startingSpeciesName);
+
       let population = [];
       let idCounter = 0;
       let speciesCounter = 1;
-      
-      const originGenome = createInitialGenome();
+
+      const originGenome = startingSpecies ? {
+        weights: { ...startingSpecies.weights },
+        threshold: startingSpecies.threshold,
+        species: startingSpecies.name,
+        speciesId: 0,
+        generation: 0
+      } : {
+        weights: { placement: 0.25, rollCount: 0.25, double: 0.25, total: 0.25 },
+        threshold: 50,
+        species: 'Origin',
+        speciesId: 0,
+        generation: 0
+      };
+
       for (let i = 0; i < maxPopulation; i++) {
         population.push({ id: idCounter++, genome: { ...originGenome } });
       }
 
-      const history = [];
-      const speciesTracker = {};
+      const speciesTracker = { 0: { maxPop: maxPopulation, genome: originGenome, name: originGenome.species } };
       const speciesColors = { 0: '#8b5cf6' };
-      
-      speciesTracker[0] = { maxPop: maxPopulation, genome: originGenome, name: 'Origin' };
-      
+      const dominantAtPercentile = {};
+
       const countBySpeciesId = (pop) => {
         const counts = {};
         pop.forEach(p => {
@@ -184,587 +555,688 @@ const BankEvolutionSystem = () => {
         });
         return counts;
       };
-      
-      const initialCounts = countBySpeciesId(population);
-      history.push({ generation: 0, ...initialCounts });
 
       for (let gen = 1; gen <= numGenerations; gen++) {
         if (population.length === 0) break;
-        
+
+        const percentile = (gen / numGenerations) * 100;
+        const milestones = [10, 20, 30, 40, 50, 60, 70, 80, 90, 95, 98, 100];
+        for (const milestone of milestones) {
+          if (percentile >= milestone && !dominantAtPercentile[milestone]) {
+            const counts = countBySpeciesId(population);
+            const dominant = Object.entries(counts).reduce((a, b) => (b[1] > a[1] ? b : a));
+            dominantAtPercentile[milestone] = parseInt(dominant[0]);
+          }
+        }
+
         for (let game = 0; game < 20; game++) {
           if (population.length < 4) break;
-          
           const shuffled = [...population].sort(() => Math.random() - 0.5);
-          const selectedPlayers = shuffled.slice(0, 4);
-          
-          const scores = playGame(selectedPlayers);
-          
-          const sortedPlayers = selectedPlayers.sort((a, b) => scores[b.id] - scores[a.id]);
-          const winner = sortedPlayers[0];
-          const losers = sortedPlayers.slice(1);
-          
+          const selected = shuffled.slice(0, 4);
+          const scores = playGame(selected);
+          const sorted = selected.sort((a, b) => scores[b.id] - scores[a.id]);
+          const winner = sorted[0];
+          const losers = sorted.slice(1);
+
           if (population.length < maxPopulation) {
             let childGenome;
-            
             if (Math.random() < mutationRate) {
-              const newSpeciesId = speciesCounter++;
-              childGenome = mutateGenome(winner.genome, gen, newSpeciesId);
-              
-              speciesTracker[newSpeciesId] = {
-                maxPop: 1,
-                genome: childGenome,
-                name: childGenome.species
+              const newId = speciesCounter++;
+              const newWeights = { ...winner.genome.weights };
+              Object.keys(newWeights).forEach(k => {
+                newWeights[k] = Math.max(0.01, newWeights[k] + (Math.random() * 0.1 - 0.05));
+              });
+              childGenome = {
+                weights: normalizeWeights(newWeights),
+                threshold: Math.max(10, Math.min(90, winner.genome.threshold + (Math.random() * 20 - 10))),
+                species: 'Species_' + newId,
+                speciesId: newId,
+                generation: gen
               };
-              speciesColors[newSpeciesId] = generateColor(newSpeciesId);
+              speciesTracker[newId] = { maxPop: 1, genome: childGenome, name: childGenome.species };
+              speciesColors[newId] = 'hsl(' + ((newId * 137.508) % 360) + ', 70%, 50%)';
             } else {
               childGenome = { ...winner.genome };
             }
-            
             population.push({ id: idCounter++, genome: childGenome });
           }
-          
+
           losers.forEach(loser => {
             if (Math.random() < 0.25) {
-              const index = population.findIndex(p => p.id === loser.id);
-              if (index !== -1) {
-                population.splice(index, 1);
-              }
+              const idx = population.findIndex(p => p.id === loser.id);
+              if (idx !== -1) population.splice(idx, 1);
             }
           });
         }
-        
+
         const currentCounts = countBySpeciesId(population);
         Object.keys(currentCounts).forEach(sid => {
           if (speciesTracker[sid]) {
-            speciesTracker[sid].maxPop = Math.max(
-              speciesTracker[sid].maxPop, 
-              currentCounts[sid]
-            );
+            speciesTracker[sid].maxPop = Math.max(speciesTracker[sid].maxPop, currentCounts[sid]);
           }
         });
-        
-        history.push({ generation: gen, ...currentCounts });
       }
 
-      setPopulationHistory(history);
-      
-      const sortedSpecies = Object.entries(speciesTracker)
-        .map(([id, data]) => {
-          return {
-            id: parseInt(id),
-            name: data.name,
-            maxPop: data.maxPop,
-            weights: data.genome.weights,
-            threshold: data.genome.threshold,
-            color: speciesColors[id],
-            genome: data.genome
-          };
-        })
-        .sort((a, b) => b.maxPop - a.maxPop);
-      
-      setSpeciesStats(sortedSpecies);
-      setSelectedForSave(new Set());
-      setIsRunning(false);
-    }, 100);
-  };
+      const milestoneSpecies = new Map();
+      Object.entries(dominantAtPercentile).forEach(([milestone, speciesId]) => {
+        if (speciesTracker[speciesId]) {
+          milestoneSpecies.set(speciesId, {
+            id: parseInt(speciesId),
+            name: speciesTracker[speciesId].name,
+            maxPop: speciesTracker[speciesId].maxPop,
+            weights: speciesTracker[speciesId].genome.weights,
+            threshold: speciesTracker[speciesId].genome.threshold,
+            color: speciesColors[speciesId],
+            genome: speciesTracker[speciesId].genome,
+            milestone: parseInt(milestone)
+          });
+        }
+      });
 
-  const toggleSaveSelection = (speciesId) => {
-    const newSet = new Set(selectedForSave);
-    if (newSet.has(speciesId)) {
-      newSet.delete(speciesId);
-    } else {
-      newSet.add(speciesId);
+      latestResults = Array.from(milestoneSpecies.values()).sort((a, b) => a.milestone - b.milestone);
+      displayResults(latestResults);
     }
-    setSelectedForSave(newSet);
-  };
 
-  const saveSelectedSpecies = () => {
-    const toSave = speciesStats.filter(s => selectedForSave.has(s.id));
-    const newSaved = [...savedSpecies];
-    
-    toSave.forEach(species => {
-      if (!newSaved.find(s => s.name === species.name)) {
-        newSaved.push(species);
+    function displayResults(results) {
+      const tbody = document.getElementById('species-tbody');
+      tbody.innerHTML = '';
+
+      results.forEach(s => {
+        const tr = document.createElement('tr');
+        tr.innerHTML = `
+          <td><input type="checkbox" onchange="toggleSaveSelection(${s.id})"></td>
+          <td><strong>${s.milestone}%</strong></td>
+          <td>
+            <span class="color-dot" style="background-color: ${s.color}; display: inline-block; width: 12px; height: 12px; border-radius: 50%; margin-right: 8px;"></span>
+            ${s.name}
+          </td>
+          <td><strong>${s.maxPop}</strong></td>
+          <td>${(s.weights.placement * 100).toFixed(1)}%</td>
+          <td>${(s.weights.rollCount * 100).toFixed(1)}%</td>
+          <td>${(s.weights.double * 100).toFixed(1)}%</td>
+          <td>${(s.weights.total * 100).toFixed(1)}%</td>
+          <td>${s.threshold.toFixed(0)}</td>
+        `;
+        tbody.appendChild(tr);
+      });
+
+      document.getElementById('results-container').classList.remove('hidden');
+      selectedForSave.clear();
+      updateSaveButton();
+    }
+
+    function toggleSaveSelection(id) {
+      if (selectedForSave.has(id)) {
+        selectedForSave.delete(id);
+      } else {
+        selectedForSave.add(id);
       }
-    });
-    
-    setSavedSpecies(newSaved);
-    localStorage.setItem('bankSpecies', JSON.stringify(newSaved));
-    setSelectedForSave(new Set());
-    alert('Species saved successfully!');
-  };
-
-  const removeSavedSpecies = (name) => {
-    const newSaved = savedSpecies.filter(s => s.name !== name);
-    setSavedSpecies(newSaved);
-    localStorage.setItem('bankSpecies', JSON.stringify(newSaved));
-  };
-
-  const toggleCompeteSelection = (name) => {
-    const newSet = new Set(selectedForCompete);
-    if (newSet.has(name)) {
-      newSet.delete(name);
-    } else {
-      newSet.add(name);
-    }
-    setSelectedForCompete(newSet);
-  };
-
-  const runCompetition = () => {
-    if (selectedForCompete.size < 2) {
-      alert('Please select at least 2 species to compete');
-      return;
+      updateSaveButton();
     }
 
-    setIsRunning(true);
+    function updateSaveButton() {
+      const btn = document.getElementById('save-btn');
+      btn.textContent = `Save Selected (${selectedForSave.size})`;
+      btn.disabled = selectedForSave.size === 0;
+    }
 
-    setTimeout(() => {
-      const competingSpecies = savedSpecies.filter(s => selectedForCompete.has(s.name));
+    function saveSelected() {
+      const toSave = latestResults.filter(s => selectedForSave.has(s.id));
+      toSave.forEach(s => {
+        if (!savedSpecies.find(x => x.name === s.name)) {
+          savedSpecies.push(s);
+        }
+      });
+      savePersistent();
+      selectedForSave.clear();
+      updateSaveButton();
+      alert('Saved!');
+    }
+
+    // Compete
+    function updateCompeteList() {
+      const container = document.getElementById('compete-species-list');
+      if (savedSpecies.length === 0) {
+        container.innerHTML = '<p>No saved species! Save some from the Evolve tab first.</p>';
+        return;
+      }
+
+      container.innerHTML = '';
+      savedSpecies.forEach(s => {
+        const label = document.createElement('label');
+        label.className = 'checkbox-label';
+        label.innerHTML = `
+          <input type="checkbox" onchange="toggleCompeteSelection('${s.name}')">
+          <span class="color-dot" style="background-color: ${s.color};"></span>
+          <span>${s.name}</span>
+        `;
+        container.appendChild(label);
+      });
+
+      updateCompeteButton();
+    }
+
+    function toggleCompeteSelection(name) {
+      if (selectedForCompete.has(name)) {
+        selectedForCompete.delete(name);
+      } else {
+        selectedForCompete.add(name);
+      }
+      updateCompeteButton();
+    }
+
+    function updateCompeteButton() {
+      const btn = document.getElementById('compete-btn');
+      btn.disabled = selectedForCompete.size < 2;
+    }
+
+    function runCompetition() {
+      if (selectedForCompete.size < 2) {
+        alert('Select 2+ species');
+        return;
+      }
+
+      const numGames = parseInt(document.getElementById('num-games').value);
+      const competing = savedSpecies.filter(s => selectedForCompete.has(s.name));
       const results = {};
-      
-      competingSpecies.forEach(species => {
-        results[species.name] = { wins: 0, totalScore: 0, species: species };
+
+      competing.forEach(s => {
+        results[s.name] = { wins: 0, totalScore: 0, species: s };
       });
 
       for (let i = 0; i < numGames; i++) {
-        const players = competingSpecies.map((species, idx) => ({
-          id: idx,
-          genome: species.genome,
-          name: species.name
-        }));
-
+        const players = competing.map((s, idx) => ({ id: idx, genome: s.genome, name: s.name }));
         const scores = playGame(players);
         const maxScore = Math.max(...Object.values(scores));
-        
         players.forEach(p => {
           results[p.name].totalScore += scores[p.id];
-          if (scores[p.id] === maxScore) {
-            results[p.name].wins++;
-          }
+          if (scores[p.id] === maxScore) results[p.name].wins++;
         });
       }
 
-      const sortedResults = Object.values(results)
-        .map(r => ({
-          name: r.species.name,
-          wins: r.wins,
-          winRate: (r.wins / numGames * 100).toFixed(1),
-          avgScore: (r.totalScore / numGames).toFixed(1),
-          color: r.species.color
-        }))
-        .sort((a, b) => b.wins - a.wins);
+      const sorted = Object.values(results).map(r => ({
+        name: r.species.name,
+        wins: r.wins,
+        winRate: (r.wins / numGames * 100).toFixed(1),
+        avgScore: (r.totalScore / numGames).toFixed(1),
+        color: r.species.color
+      })).sort((a, b) => b.wins - a.wins);
 
-      setCompeteResults(sortedResults);
-      setIsRunning(false);
-    }, 100);
-  };
+      displayCompeteResults(sorted);
+    }
 
-  const calculateGoodSpecies = () => {
-    const top10 = speciesStats.slice(0, 10);
-    if (top10.length === 0) return null;
-    
-    const avgWeights = {
-      placement: top10.reduce((sum, s) => sum + s.weights.placement, 0) / top10.length,
-      rollCount: top10.reduce((sum, s) => sum + s.weights.rollCount, 0) / top10.length,
-      double: top10.reduce((sum, s) => sum + s.weights.double, 0) / top10.length,
-      total: top10.reduce((sum, s) => sum + s.weights.total, 0) / top10.length
+    function displayCompeteResults(results) {
+      const tbody = document.getElementById('compete-tbody');
+      tbody.innerHTML = '';
+
+      results.forEach((r, i) => {
+        const tr = document.createElement('tr');
+        tr.innerHTML = `
+          <td><strong>${i + 1}</strong></td>
+          <td>
+            <span class="color-dot" style="background-color: ${r.color}; display: inline-block; width: 12px; height: 12px; border-radius: 50%; margin-right: 8px;"></span>
+            ${r.name}
+          </td>
+          <td><strong>${r.wins}</strong></td>
+          <td>${r.winRate}%</td>
+          <td>${r.avgScore}</td>
+        `;
+        tbody.appendChild(tr);
+      });
+
+      document.getElementById('compete-results').classList.remove('hidden');
+    }
+
+    // Saved
+    function updateSavedList() {
+      const container = document.getElementById('saved-species-list');
+      if (savedSpecies.length === 0) {
+        container.innerHTML = '<p>No saved species!</p>';
+        return;
+      }
+
+      container.innerHTML = '';
+      savedSpecies.forEach(s => {
+        const card = document.createElement('div');
+        card.className = 'species-card';
+        card.innerHTML = `
+          <div class="species-header">
+            <span class="color-dot" style="background-color: ${s.color};"></span>
+            <span class="species-name">${s.name}</span>
+          </div>
+          <div class="species-stats">
+            <p><b>Max Pop:</b> ${s.maxPop}</p>
+            <p><b>Placement:</b> ${(s.weights.placement * 100).toFixed(1)}%</p>
+            <p><b>Roll:</b> ${(s.weights.rollCount * 100).toFixed(1)}%</p>
+            <p><b>Double:</b> ${(s.weights.double * 100).toFixed(1)}%</p>
+            <p><b>Total:</b> ${(s.weights.total * 100).toFixed(1)}%</p>
+            <p><b>Threshold:</b> ${s.threshold.toFixed(0)}</p>
+          </div>
+          <button class="btn-remove" onclick="removeSpecies('${s.name}')">Remove</button>
+        `;
+        container.appendChild(card);
+      });
+    }
+
+    function removeSpecies(name) {
+      savedSpecies = savedSpecies.filter(s => s.name !== name);
+      savePersistent();
+    }
+
+    // Trial Game
+    let selectedForTrial = [];
+    let trialGame = null;
+    let diceStats = {
+      sums: { 2: 0, 3: 0, 4: 0, 5: 0, 6: 0, 7: 0, 8: 0, 9: 0, 10: 0, 11: 0, 12: 0 },
+      doubles: { 1: 0, 2: 0, 3: 0, 4: 0, 5: 0, 6: 0 },
+      totalRolls: 0
     };
-    const avgThreshold = top10.reduce((sum, s) => sum + s.threshold, 0) / top10.length;
-    
-    return { avgWeights, avgThreshold };
-  };
 
-  return (
-    <div className="min-h-screen bg-gradient-to-br from-green-50 to-blue-100 p-8">
-      <div className="max-w-7xl mx-auto">
-        <header className="text-center mb-8">
-          <h1 className="text-4xl font-bold text-green-900 mb-2">
-            🧬 BANK Game Evolution System
-          </h1>
-          <p className="text-gray-600 text-lg">
-            Evolve and compete strategies through natural selection
-          </p>
-        </header>
-        
-        <div className="flex gap-3 mb-8 bg-white p-3 rounded-lg shadow-lg">
-          <button
-            onClick={() => setActiveTab('evolve')}
-            className={'flex-1 py-3 px-6 rounded-lg font-semibold transition ' + (activeTab === 'evolve' ? 'bg-green-600 text-white' : 'bg-gray-100 text-gray-700 hover:bg-gray-200')}
-          >
-            Evolve
-          </button>
-          <button
-            onClick={() => setActiveTab('compete')}
-            className={'flex-1 py-3 px-6 rounded-lg font-semibold transition ' + (activeTab === 'compete' ? 'bg-green-600 text-white' : 'bg-gray-100 text-gray-700 hover:bg-gray-200')}
-          >
-            Compete
-          </button>
-          <button
-            onClick={() => setActiveTab('saved')}
-            className={'flex-1 py-3 px-6 rounded-lg font-semibold transition ' + (activeTab === 'saved' ? 'bg-green-600 text-white' : 'bg-gray-100 text-gray-700 hover:bg-gray-200')}
-          >
-            Saved Species ({savedSpecies.length})
-          </button>
-        </div>
+    function updateTrialList() {
+      const container = document.getElementById('trial-species-list');
+      if (savedSpecies.length === 0) {
+        container.innerHTML = '<p>No saved species! Save some from the Evolve tab first.</p>';
+        document.getElementById('trial-start-btn').disabled = true;
+        return;
+      }
 
-        {activeTab === 'evolve' && (
-          <div>
-            <div className="bg-white rounded-lg shadow-lg p-6 mb-6">
-              <h2 className="text-2xl font-bold text-gray-800 mb-4">Simulation Settings</h2>
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
-                <div>
-                  <label className="block text-sm font-semibold text-gray-700 mb-1">
-                    Number of Generations:
-                  </label>
-                  <input
-                    type="number"
-                    value={numGenerations}
-                    onChange={(e) => setNumGenerations(Math.max(1, parseInt(e.target.value) || 1))}
-                    className="w-full border-2 border-green-300 rounded px-4 py-2 text-lg"
-                    min="1"
-                  />
-                </div>
-                <div>
-                  <label className="block text-sm font-semibold text-gray-700 mb-1">
-                    Mutation Rate:
-                  </label>
-                  <input
-                    type="number"
-                    step="0.01"
-                    value={mutationRate}
-                    onChange={(e) => setMutationRate(Math.max(0, Math.min(1, parseFloat(e.target.value) || 0)))}
-                    className="w-full border-2 border-purple-300 rounded px-4 py-2 text-lg"
-                    min="0"
-                    max="1"
-                  />
-                </div>
-                <div>
-                  <label className="block text-sm font-semibold text-gray-700 mb-1">
-                    Max Population:
-                  </label>
-                  <input
-                    type="number"
-                    value={maxPopulation}
-                    onChange={(e) => setMaxPopulation(Math.max(10, parseInt(e.target.value) || 120))}
-                    className="w-full border-2 border-blue-300 rounded px-4 py-2 text-lg"
-                    min="10"
-                  />
-                </div>
-              </div>
-              <button
-                onClick={runEvolution}
-                disabled={isRunning}
-                className="bg-green-600 hover:bg-green-700 disabled:bg-gray-400 text-white font-bold py-3 px-8 rounded-lg transition"
-              >
-                {isRunning ? 'Running...' : 'Start Evolution'}
-              </button>
+      container.innerHTML = '';
+      savedSpecies.forEach(s => {
+        const isSelected = selectedForTrial.some(sp => sp.name === s.name);
+        const btn = document.createElement('button');
+        btn.className = 'checkbox-label';
+        btn.style.cursor = 'pointer';
+        btn.style.border = isSelected ? '2px solid #16a34a' : '2px solid #e5e7eb';
+        btn.style.background = isSelected ? '#f0fdf4' : 'white';
+        btn.innerHTML = `
+          <span class="color-dot" style="background-color: ${s.color};"></span>
+          <span style="font-weight: 600;">${s.name}</span>
+        `;
+        btn.onclick = () => toggleTrialSelection(s);
+        container.appendChild(btn);
+      });
 
-              <div className="bg-blue-50 p-4 rounded-lg border-2 border-blue-200 mt-6">
-                <h3 className="font-bold text-blue-900 mb-2">Evolution Rules</h3>
-                <ul className="text-sm text-gray-700 space-y-1 ml-5 list-disc">
-                  <li>Population starts with {maxPopulation} individuals of the Origin species</li>
-                  <li>Origin species values all 4 factors equally (25% each)</li>
-                  <li>Each generation: 20 random 4-player games</li>
-                  <li>Winner breeds (creates offspring) if pop &lt; {maxPopulation}</li>
-                  <li>Mutation rate: {(mutationRate * 100).toFixed(0)}% chance offspring becomes new species</li>
-                  <li>Mutations adjust each weight by ±5%, then normalize to 100%</li>
-                  <li>Bottom 3 players each have 25% chance of elimination</li>
-                </ul>
-              </div>
+      updateTrialButton();
+    }
 
-              <div className="bg-purple-50 p-4 rounded-lg border-2 border-purple-200 mt-4">
-                <h3 className="font-bold text-purple-900 mb-2">Strategy Factors (Always sum to 100%)</h3>
-                <ul className="text-sm text-gray-700 space-y-1 ml-5 list-disc">
-                  <li><strong>Placement:</strong> Being in 1st place after banking</li>
-                  <li><strong>Roll Count:</strong> Risk from rolling many times</li>
-                  <li><strong>Double:</strong> Banking right after rolling doubles</li>
-                  <li><strong>Total:</strong> Current turn total score</li>
-                </ul>
-              </div>
+    function toggleTrialSelection(species) {
+      const idx = selectedForTrial.findIndex(s => s.name === species.name);
+      if (idx >= 0) {
+        selectedForTrial.splice(idx, 1);
+      } else {
+        selectedForTrial.push(species);
+      }
+      updateTrialList();
+    }
 
-              <div className="bg-amber-50 p-4 rounded-lg border-2 border-amber-200 mt-4">
-                <h3 className="font-bold text-amber-900 mb-2">What is "Threshold"?</h3>
-                <p className="text-sm text-gray-700">
-                  The threshold is the minimum banking score needed for a player to bank. Each factor (placement, roll count, double, total) contributes to a banking score between 0-100. When this combined score reaches the threshold, the player banks. A lower threshold means banking more aggressively, while a higher threshold means taking more risks for bigger scores.
-                </p>
-              </div>
-            </div>
+    function updateTrialButton() {
+      const btn = document.getElementById('trial-start-btn');
+      btn.textContent = `Start Trial Game (${selectedForTrial.length} opponent${selectedForTrial.length !== 1 ? 's' : ''})`;
+      btn.disabled = selectedForTrial.length === 0;
+    }
 
-            {populationHistory.length > 0 && (
-              <>
-                <div className="bg-white rounded-lg shadow-lg p-6 mb-6">
-                  <h2 className="text-2xl font-bold text-gray-800 mb-4">Population Over Time (Top 10 Species)</h2>
-                  <ResponsiveContainer width="100%" height={500}>
-                    <LineChart data={populationHistory}>
-                      <CartesianGrid strokeDasharray="3 3" />
-                      <XAxis dataKey="generation" label={{ value: 'Generation', position: 'insideBottom', offset: -5 }} />
-                      <YAxis label={{ value: 'Population', angle: -90, position: 'insideLeft' }} />
-                      <Tooltip />
-                      <Legend />
-                      {speciesStats.slice(0, 10).map(species => (
-                        <Line
-                          key={species.id}
-                          type="monotone"
-                          dataKey={species.id.toString()}
-                          name={species.name}
-                          stroke={species.color}
-                          strokeWidth={species.id === 0 ? 3 : 2}
-                          dot={false}
-                        />
-                      ))}
-                    </LineChart>
-                  </ResponsiveContainer>
-                </div>
+    function trackDiceRoll(die1, die2) {
+      const sum = die1 + die2;
+      diceStats.sums[sum]++;
+      if (die1 === die2) {
+        diceStats.doubles[die1]++;
+      }
+      diceStats.totalRolls++;
+      updateDiceStats();
+    }
 
-                {calculateGoodSpecies() && (
-                  <div className="bg-gradient-to-r from-yellow-50 to-amber-50 rounded-lg shadow-lg p-6 mb-6 border-2 border-yellow-300">
-                    <h2 className="text-2xl font-bold text-amber-900 mb-4">
-                      ⭐ "Good Species" - Average of Top 10
-                    </h2>
-                    {(() => {
-                      const good = calculateGoodSpecies();
-                      return (
-                        <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
-                          <div className="bg-white p-4 rounded-lg border-2 border-purple-300 text-center">
-                            <p className="text-sm text-gray-600 mb-1">Placement</p>
-                            <p className="text-2xl font-bold text-purple-700">{(good.avgWeights.placement * 100).toFixed(1)}%</p>
-                          </div>
-                          <div className="bg-white p-4 rounded-lg border-2 border-blue-300 text-center">
-                            <p className="text-sm text-gray-600 mb-1">Roll Count</p>
-                            <p className="text-2xl font-bold text-blue-700">{(good.avgWeights.rollCount * 100).toFixed(1)}%</p>
-                          </div>
-                          <div className="bg-white p-4 rounded-lg border-2 border-green-300 text-center">
-                            <p className="text-sm text-gray-600 mb-1">Double</p>
-                            <p className="text-2xl font-bold text-green-700">{(good.avgWeights.double * 100).toFixed(1)}%</p>
-                          </div>
-                          <div className="bg-white p-4 rounded-lg border-2 border-orange-300 text-center">
-                            <p className="text-sm text-gray-600 mb-1">Total</p>
-                            <p className="text-2xl font-bold text-orange-700">{(good.avgWeights.total * 100).toFixed(1)}%</p>
-                          </div>
-                          <div className="bg-white p-4 rounded-lg border-2 border-amber-300 text-center">
-                            <p className="text-sm text-gray-600 mb-1">Threshold</p>
-                            <p className="text-2xl font-bold text-amber-700">{good.avgThreshold.toFixed(0)}</p>
-                          </div>
-                        </div>
-                      );
-                    })()}
-                  </div>
-                )}
+    function updateDiceStats() {
+      document.getElementById('trial-dice-total').textContent = diceStats.totalRolls;
 
-                <div className="bg-white rounded-lg shadow-lg p-6">
-                  <h2 className="text-2xl font-bold text-gray-800 mb-2">Top 20 Species Rankings</h2>
-                  <p className="text-gray-600 mb-4">Select species to save for competition</p>
-                  <div className="overflow-x-auto">
-                    <table className="w-full text-sm">
-                      <thead className="bg-gray-100">
-                        <tr>
-                          <th className="p-2 text-left">Save</th>
-                          <th className="p-2 text-left">Rank</th>
-                          <th className="p-2 text-left">Species</th>
-                          <th className="p-2 text-right">Max Pop</th>
-                          <th className="p-2 text-right">Placement</th>
-                          <th className="p-2 text-right">Roll Count</th>
-                          <th className="p-2 text-right">Double</th>
-                          <th className="p-2 text-right">Total</th>
-                          <th className="p-2 text-right">Threshold</th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {speciesStats.slice(0, 20).map((species, idx) => (
-                          <tr key={species.id} className="border-b hover:bg-gray-50">
-                            <td className="p-2">
-                              <input
-                                type="checkbox"
-                                checked={selectedForSave.has(species.id)}
-                                onChange={() => toggleSaveSelection(species.id)}
-                                className="w-5 h-5 cursor-pointer"
-                              />
-                            </td>
-                            <td className="p-2 font-semibold">{idx + 1}</td>
-                            <td className="p-2">
-                              <span
-                                className="inline-block w-3 h-3 rounded-full mr-2"
-                                style={{ backgroundColor: species.color }}
-                              />
-                              {species.name}
-                            </td>
-                            <td className="p-2 text-right font-bold">{species.maxPop}</td>
-                            <td className="p-2 text-right">{(species.weights.placement * 100).toFixed(1)}%</td>
-                            <td className="p-2 text-right">{(species.weights.rollCount * 100).toFixed(1)}%</td>
-                            <td className="p-2 text-right">{(species.weights.double * 100).toFixed(1)}%</td>
-                            <td className="p-2 text-right">{(species.weights.total * 100).toFixed(1)}%</td>
-                            <td className="p-2 text-right">{species.threshold.toFixed(0)}</td>
-                          </tr>
-                        ))}
-                      </tbody>
-                    </table>
-                  </div>
-                  <button
-                    onClick={saveSelectedSpecies}
-                    disabled={selectedForSave.size === 0}
-                    className="mt-4 bg-green-600 hover:bg-green-700 disabled:bg-gray-400 text-white font-bold py-2 px-6 rounded-lg transition"
-                  >
-                    Save Selected Species ({selectedForSave.size})
-                  </button>
-                  <p className="text-sm text-gray-600 mt-4 text-center">
-                    Showing top 20 of {speciesStats.length} total unique species created
-                  </p>
-                </div>
-              </>
-            )}
+      const doublesTbody = document.getElementById('trial-doubles-tbody');
+      doublesTbody.innerHTML = '';
+      for (let i = 1; i <= 6; i++) {
+        const count = diceStats.doubles[i];
+        const pct = diceStats.totalRolls > 0 ? ((count / diceStats.totalRolls) * 100).toFixed(2) : '0.00';
+        doublesTbody.innerHTML += `<tr><td style="padding: 0.5rem;">${i}-${i}</td><td style="padding: 0.5rem;">${count}</td><td style="padding: 0.5rem;">${pct}%</td></tr>`;
+      }
+
+      const sumsTbody = document.getElementById('trial-sums-tbody');
+      sumsTbody.innerHTML = '';
+      for (let i = 2; i <= 12; i++) {
+        const count = diceStats.sums[i];
+        const pct = diceStats.totalRolls > 0 ? ((count / diceStats.totalRolls) * 100).toFixed(2) : '0.00';
+        sumsTbody.innerHTML += `<tr><td style="padding: 0.5rem;">${i}</td><td style="padding: 0.5rem;">${count}</td><td style="padding: 0.5rem;">${pct}%</td></tr>`;
+      }
+    }
+
+    function startTrialGame() {
+      if (selectedForTrial.length === 0) return;
+
+      diceStats = {
+        sums: { 2: 0, 3: 0, 4: 0, 5: 0, 6: 0, 7: 0, 8: 0, 9: 0, 10: 0, 11: 0, 12: 0 },
+        doubles: { 1: 0, 2: 0, 3: 0, 4: 0, 5: 0, 6: 0 },
+        totalRolls: 0
+      };
+
+      const players = [{ id: 'human', name: 'You', isHuman: true, color: '#3b82f6' }];
+      selectedForTrial.forEach((s, i) => {
+        players.push({ id: 'ai_' + i, name: s.name, isHuman: false, genome: s.genome, color: s.color });
+      });
+
+      const scores = {};
+      const roundStartScores = {};
+      players.forEach(p => {
+        scores[p.id] = 0;
+        roundStartScores[p.id] = 0;
+      });
+
+      trialGame = {
+        players,
+        scores,
+        round: 1,
+        turnTotal: 0,
+        rollCount: 0,
+        justDoubled: false,
+        banked: new Set(),
+        roundStartScores,
+        gameOver: false,
+        lastRoll: null,
+        aiDecisions: {}
+      };
+
+      document.getElementById('trial-setup').classList.add('hidden');
+      document.getElementById('trial-game').classList.remove('hidden');
+      updateTrialDisplay();
+      updateDiceStats();
+    }
+
+    function updateTrialDisplay() {
+      if (!trialGame) return;
+
+      document.getElementById('trial-round').textContent = trialGame.round;
+      document.getElementById('trial-turn-total').textContent = trialGame.turnTotal;
+      document.getElementById('trial-roll-count').textContent = trialGame.rollCount;
+      document.getElementById('trial-last-roll').textContent = trialGame.lastRoll || '';
+      document.getElementById('trial-bank-btn').textContent = `Bank (${trialGame.turnTotal})`;
+      document.getElementById('trial-bank-btn').disabled = trialGame.turnTotal === 0;
+
+      const scoreboard = document.getElementById('trial-scoreboard');
+      scoreboard.innerHTML = '';
+      trialGame.players.forEach(p => {
+        const hasBanked = trialGame.banked.has(p.id);
+        const card = document.createElement('div');
+        card.style.padding = '1rem';
+        card.style.borderRadius = '0.5rem';
+        card.style.border = hasBanked ? '2px solid #d1d5db' : '2px solid #16a34a';
+        card.style.background = hasBanked ? '#f9fafb' : '#f0fdf4';
+        card.innerHTML = `
+          <div style="display: flex; align-items: center; gap: 0.5rem; margin-bottom: 0.5rem;">
+            <span class="color-dot" style="background-color: ${p.color};"></span>
+            <h3 style="font-size: 1.125rem; font-weight: ${hasBanked ? 'normal' : 'bold'};">${p.name}</h3>
           </div>
-        )}
+          <p style="font-size: 1.75rem; font-weight: 700; color: #15803d;">${trialGame.scores[p.id]}</p>
+          ${hasBanked ? '<p style="font-size: 0.875rem; color: #6b7280; margin-top: 0.25rem;">✓ Banked</p>' : ''}
+        `;
+        scoreboard.appendChild(card);
+      });
 
-        {activeTab === 'compete' && (
-          <div>
-            <div className="bg-white rounded-lg shadow-lg p-6 mb-6">
-              <h2 className="text-2xl font-bold text-gray-800 mb-4">Competition Settings</h2>
-              <div className="mb-4">
-                <label className="block text-sm font-semibold text-gray-700 mb-1">
-                  Number of Games:
-                </label>
-                <input
-                  type="number"
-                  value={numGames}
-                  onChange={(e) => setNumGames(Math.max(1, parseInt(e.target.value) || 1000))}
-                  className="w-64 border-2 border-green-300 rounded px-4 py-2 text-lg"
-                  min="1"
-                />
-              </div>
+      if (trialGame.gameOver) {
+        document.getElementById('trial-playing').classList.add('hidden');
+        document.getElementById('trial-banked').classList.add('hidden');
+        document.getElementById('trial-game-over').classList.remove('hidden');
 
-              <h3 className="text-lg font-semibold text-gray-800 mt-6 mb-3">
-                Select Species to Compete (choose at least 2)
-              </h3>
-              
-              {savedSpecies.length === 0 ? (
-                <p className="text-gray-600">No saved species yet. Run an evolution and save some species first!</p>
-              ) : (
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
-                  {savedSpecies.map(species => (
-                    <label key={species.name} className="flex items-center gap-3 p-3 border-2 border-gray-200 rounded-lg hover:bg-gray-50 cursor-pointer">
-                      <input
-                        type="checkbox"
-                        checked={selectedForCompete.has(species.name)}
-                        onChange={() => toggleCompeteSelection(species.name)}
-                        className="w-5 h-5"
-                      />
-                      <span
-                        className="w-4 h-4 rounded-full"
-                        style={{ backgroundColor: species.color }}
-                      />
-                      <span className="font-medium">{species.name}</span>
-                    </label>
-                  ))}
-                </div>
-              )}
-
-              <button
-                onClick={runCompetition}
-                disabled={isRunning || selectedForCompete.size < 2}
-                className="mt-6 bg-green-600 hover:bg-green-700 disabled:bg-gray-400 text-white font-bold py-3 px-8 rounded-lg transition"
-              >
-                {isRunning ? 'Running...' : 'Start Competition'}
-              </button>
-            </div>
-
-            {competeResults && (
-              <>
-                <div className="bg-white rounded-lg shadow-lg p-6 mb-6">
-                  <h2 className="text-2xl font-bold text-gray-800 mb-4">Competition Results</h2>
-                  <ResponsiveContainer width="100%" height={400}>
-                    <BarChart data={competeResults}>
-                      <CartesianGrid strokeDasharray="3 3" />
-                      <XAxis dataKey="name" />
-                      <YAxis />
-                      <Tooltip />
-                      <Legend />
-                      <Bar dataKey="wins" fill="#22c55e" name="Wins" />
-                    </BarChart>
-                  </ResponsiveContainer>
-                </div>
-
-                <div className="bg-white rounded-lg shadow-lg p-6">
-                  <h2 className="text-2xl font-bold text-gray-800 mb-4">Detailed Results</h2>
-                  <div className="overflow-x-auto">
-                    <table className="w-full">
-                      <thead className="bg-gray-100">
-                        <tr>
-                          <th className="p-3 text-left">Rank</th>
-                          <th className="p-3 text-left">Species</th>
-                          <th className="p-3 text-right">Wins</th>
-                          <th className="p-3 text-right">Win Rate</th>
-                          <th className="p-3 text-right">Avg Score</th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {competeResults.map((result, idx) => (
-                          <tr key={result.name} className="border-b hover:bg-gray-50">
-                            <td className="p-3 font-semibold">{idx + 1}</td>
-                            <td className="p-3">
-                              <span
-                                className="inline-block w-3 h-3 rounded-full mr-2"
-                                style={{ backgroundColor: result.color }}
-                              />
-                              {result.name}
-                            </td>
-                            <td className="p-3 text-right font-bold">{result.wins}</td>
-                            <td className="p-3 text-right">{result.winRate}%</td>
-                            <td className="p-3 text-right">{result.avgScore}</td>
-                          </tr>
-                        ))}
-                      </tbody>
-                    </table>
-                  </div>
-                </div>
-              </>
-            )}
+        const results = document.getElementById('trial-final-results');
+        const sorted = trialGame.players.sort((a, b) => trialGame.scores[b.id] - trialGame.scores[a.id]);
+        results.innerHTML = sorted.map((p, i) => `
+          <div style="font-size: 1.25rem; ${i === 0 ? 'font-weight: 700; color: #15803d;' : ''}">
+            ${i + 1}. ${p.name}: ${trialGame.scores[p.id]} points
           </div>
-        )}
+        `).join('');
+      } else if (trialGame.banked.has('human')) {
+        document.getElementById('trial-playing').classList.add('hidden');
+        document.getElementById('trial-banked').classList.remove('hidden');
+        document.getElementById('trial-game-over').classList.add('hidden');
+      } else {
+        document.getElementById('trial-playing').classList.remove('hidden');
+        document.getElementById('trial-banked').classList.add('hidden');
+        document.getElementById('trial-game-over').classList.add('hidden');
+      }
+    }
 
-        {activeTab === 'saved' && (
-          <div className="bg-white rounded-lg shadow-lg p-6">
-            <h2 className="text-2xl font-bold text-gray-800 mb-4">
-              Saved Species ({savedSpecies.length})
-            </h2>
-            
-            {savedSpecies.length === 0 ? (
-              <p className="text-gray-600">No saved species yet. Run an evolution and save some species!</p>
-            ) : (
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                {savedSpecies.map(species => (
-                  <div key={species.name} className="border-2 border-gray-200 rounded-lg p-4 relative">
-                    <button
-                      onClick={() => removeSavedSpecies(species.name)}
-                      className="absolute top-2 right-2 bg-red-500 hover:bg-red-600 text-white px-2 py-1 rounded text-sm"
-                    >
-                      Remove
-                    </button>
-                    
-                    <div className="flex items-center gap-2 mb-3">
-                      <span
-                        className="w-4 h-4 rounded-full"
-                        style={{ backgroundColor: species.color }}
-                      />
-                      <h3 className="font-bold text-lg">{species.name}</h3>
-                    </div>
-                    
-                    <div className="text-sm space-y-1">
-                      <p><strong>Max Pop:</strong> {species.maxPop}</p>
-                      <p><strong>Placement:</strong> {(species.weights.placement * 100).toFixed(1)}%</p>
-                      <p><strong>Roll Count:</strong> {(species.weights.rollCount * 100).toFixed(1)}%</p>
-                      <p><strong>Double:</strong> {(species.weights.double * 100).toFixed(1)}%</p>
-                      <p><strong>Total:</strong> {(species.weights.total * 100).toFixed(1)}%</p>
-                      <p><strong>Threshold:</strong> {species.threshold.toFixed(0)}</p>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            )}
-          </div>
-        )}
-      </div>
-    </div>
-  );
-};
+    function rollInTrial() {
+      if (!trialGame || trialGame.gameOver || trialGame.banked.has('human')) return;
 
-export default BankEvolutionSystem;
+      const newRollCount = trialGame.rollCount + 1;
+      const dice = rollDice();
+      const die1 = dice[0];
+      const die2 = dice[1];
+      trackDiceRoll(die1, die2);
+      const sum = die1 + die2;
+      let newTurnTotal = trialGame.turnTotal;
+      let newJustDoubled = false;
+      let busted = false;
+
+      if (newRollCount <= 3) {
+        newTurnTotal += (sum === 7) ? 70 : sum;
+      } else {
+        if (sum === 7) {
+          busted = true;
+          newTurnTotal = 0;
+        } else if (die1 === die2) {
+          newTurnTotal *= 2;
+          newJustDoubled = true;
+        } else {
+          newTurnTotal += sum;
+        }
+      }
+
+      if (busted) {
+        if (trialGame.round >= 10) {
+          trialGame.gameOver = true;
+        } else {
+          const newRoundStartScores = {};
+          trialGame.players.forEach(p => {
+            newRoundStartScores[p.id] = trialGame.scores[p.id];
+          });
+          trialGame.round++;
+          trialGame.turnTotal = 0;
+          trialGame.rollCount = 0;
+          trialGame.justDoubled = false;
+          trialGame.banked = new Set();
+          trialGame.roundStartScores = newRoundStartScores;
+        }
+        trialGame.lastRoll = `${die1}, ${die2} = 7 (BUSTED!)`;
+        updateTrialDisplay();
+        return;
+      }
+
+      const newAiDecisions = {};
+      for (const player of trialGame.players) {
+        if (!player.isHuman && !trialGame.banked.has(player.id)) {
+          const strategy = createStrategy(player.genome);
+          const otherScores = trialGame.players.filter(p => p.id !== player.id).map(p => trialGame.scores[p.id]);
+          newAiDecisions[player.id] = strategy(newTurnTotal, newRollCount, trialGame.scores[player.id], otherScores, newJustDoubled);
+        }
+      }
+
+      trialGame.turnTotal = newTurnTotal;
+      trialGame.rollCount = newRollCount;
+      trialGame.justDoubled = newJustDoubled;
+      trialGame.lastRoll = `${die1}, ${die2}${die1 === die2 ? ' (DOUBLE!)' : ''}`;
+      trialGame.aiDecisions = newAiDecisions;
+
+      updateTrialDisplay();
+    }
+
+    function bankInTrial() {
+      if (!trialGame || trialGame.gameOver || trialGame.banked.has('human')) return;
+
+      const newBanked = new Set(trialGame.banked);
+      newBanked.add('human');
+
+      const newScores = { ...trialGame.scores };
+      newScores['human'] = trialGame.roundStartScores['human'] + trialGame.turnTotal;
+
+      for (const player of trialGame.players) {
+        if (!player.isHuman && trialGame.aiDecisions[player.id]) {
+          newBanked.add(player.id);
+          newScores[player.id] = trialGame.roundStartScores[player.id] + trialGame.turnTotal;
+        }
+      }
+
+      trialGame.scores = newScores;
+      trialGame.banked = newBanked;
+
+      const allBanked = newBanked.size === trialGame.players.length;
+
+      if (allBanked) {
+        if (trialGame.round >= 10) {
+          trialGame.gameOver = true;
+        } else {
+          const newRoundStartScores = {};
+          trialGame.players.forEach(p => {
+            newRoundStartScores[p.id] = newScores[p.id];
+          });
+          trialGame.round++;
+          trialGame.turnTotal = 0;
+          trialGame.rollCount = 0;
+          trialGame.justDoubled = false;
+          trialGame.banked = new Set();
+          trialGame.roundStartScores = newRoundStartScores;
+          trialGame.aiDecisions = {};
+        }
+      } else {
+        setTimeout(() => continueRollingForAI(), 800);
+      }
+
+      updateTrialDisplay();
+    }
+
+    function continueRollingForAI() {
+      if (!trialGame || trialGame.gameOver) return;
+
+      if (trialGame.banked.size === trialGame.players.length) {
+        if (trialGame.round >= 10) {
+          trialGame.gameOver = true;
+        } else {
+          const newRoundStartScores = {};
+          trialGame.players.forEach(p => {
+            newRoundStartScores[p.id] = trialGame.scores[p.id];
+          });
+          trialGame.round++;
+          trialGame.turnTotal = 0;
+          trialGame.rollCount = 0;
+          trialGame.justDoubled = false;
+          trialGame.banked = new Set();
+          trialGame.roundStartScores = newRoundStartScores;
+          trialGame.aiDecisions = {};
+        }
+        updateTrialDisplay();
+        return;
+      }
+
+      const newRollCount = trialGame.rollCount + 1;
+      const dice = rollDice();
+      const die1 = dice[0];
+      const die2 = dice[1];
+      trackDiceRoll(die1, die2);
+      const sum = die1 + die2;
+      let newTurnTotal = trialGame.turnTotal;
+      let newJustDoubled = false;
+      let busted = false;
+
+      if (newRollCount <= 3) {
+        newTurnTotal += (sum === 7) ? 70 : sum;
+      } else {
+        if (sum === 7) {
+          busted = true;
+        } else if (die1 === die2) {
+          newTurnTotal *= 2;
+          newJustDoubled = true;
+        } else {
+          newTurnTotal += sum;
+        }
+      }
+
+      if (busted) {
+        if (trialGame.round >= 10) {
+          trialGame.gameOver = true;
+        } else {
+          const newRoundStartScores = {};
+          trialGame.players.forEach(p => {
+            newRoundStartScores[p.id] = trialGame.scores[p.id];
+          });
+          trialGame.round++;
+          trialGame.turnTotal = 0;
+          trialGame.rollCount = 0;
+          trialGame.justDoubled = false;
+          trialGame.banked = new Set();
+          trialGame.roundStartScores = newRoundStartScores;
+        }
+        trialGame.lastRoll = `${die1}, ${die2} = 7 (BUSTED!)`;
+        updateTrialDisplay();
+        return;
+      }
+
+      const newBanked = new Set(trialGame.banked);
+      const newScores = { ...trialGame.scores };
+
+      for (const player of trialGame.players) {
+        if (!player.isHuman && !trialGame.banked.has(player.id)) {
+          const shouldBank = trialGame.aiDecisions[player.id] || false;
+          if (shouldBank) {
+            newBanked.add(player.id);
+            newScores[player.id] = trialGame.roundStartScores[player.id] + newTurnTotal;
+          }
+        }
+      }
+
+      trialGame.scores = newScores;
+      trialGame.turnTotal = newTurnTotal;
+      trialGame.rollCount = newRollCount;
+      trialGame.justDoubled = newJustDoubled;
+      trialGame.banked = newBanked;
+      trialGame.lastRoll = `${die1}, ${die2}${die1 === die2 ? ' (DOUBLE!)' : ''}`;
+
+      const allBankedNow = newBanked.size === trialGame.players.length;
+
+      if (allBankedNow) {
+        if (trialGame.round >= 10) {
+          trialGame.gameOver = true;
+        } else {
+          const newRoundStartScores = {};
+          trialGame.players.forEach(p => {
+            newRoundStartScores[p.id] = newScores[p.id];
+          });
+          trialGame.round++;
+          trialGame.turnTotal = 0;
+          trialGame.rollCount = 0;
+          trialGame.justDoubled = false;
+          trialGame.banked = new Set();
+          trialGame.roundStartScores = newRoundStartScores;
+          trialGame.aiDecisions = {};
+        }
+      } else {
+        setTimeout(() => continueRollingForAI(), 800);
+      }
+
+      updateTrialDisplay();
+    }
+
+    function endTrialGame() {
+      trialGame = null;
+      document.getElementById('trial-setup').classList.remove('hidden');
+      document.getElementById('trial-game').classList.add('hidden');
+      updateTrialList();
+    }
+
+    // Initialize
+    loadSaved();
+
+    // Update trial list when tab is switched
+    const originalSwitchTab = switchTab;
+    switchTab = function(tabName) {
+      originalSwitchTab.call(this, tabName);
+      if (tabName === 'trial') {
+        updateTrialList();
+      }
+    };
+  </script>
+</body>
+</html>
